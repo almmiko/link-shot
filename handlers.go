@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
+
+	"github.com/gorilla/mux"
 
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 
@@ -69,6 +72,47 @@ func CreateShortUrl(w http.ResponseWriter, r *http.Request) {
 
 	}
 	JSON(w, http.StatusOK, data)
+}
+
+func RedirectToUrl(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	code := vars["code"]
+	queryResult := URL{}
+
+	query := &dynamodb.GetItemInput{
+		TableName: aws.String(TABLE),
+		Key: map[string]*dynamodb.AttributeValue{
+			"short_url": {
+				S: aws.String(code),
+			},
+		},
+	}
+
+	result, err := dbConn.GetItem(query)
+	if err != nil {
+		log.Fatalf("Error calling query: %v", err.Error())
+	}
+
+	if err := dynamodbattribute.UnmarshalMap(result.Item, &queryResult); err != nil {
+		log.Fatalf("UnmarshalMap failed: %v", err.Error())
+	}
+
+	if queryResult.OriginalUrl == "" {
+		JSON(w, http.StatusNotFound, &ValidationError{
+			Message: "Code " + code + " not found",
+		})
+		return
+	}
+
+	u, _ := url.Parse(queryResult.OriginalUrl)
+	var redirectUrl string
+	if u.Host != "" {
+		redirectUrl = u.Host
+	} else {
+		redirectUrl = u.Path
+	}
+
+	http.Redirect(w, r, "//"+redirectUrl, http.StatusSeeOther)
 }
 
 func NewDatabaseConnection() (*dynamodb.DynamoDB, error) {

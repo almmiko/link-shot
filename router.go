@@ -22,6 +22,12 @@ var endpoints = Endpoints{
 		Pattern:     "/new",
 		HandlerFunc: CreateShortUrl,
 	},
+	Endpoint{
+		Name:        "root",
+		Method:      "GET",
+		Pattern:     "/{code}",
+		HandlerFunc: RedirectToUrl,
+	},
 }
 
 func NewRouter() *mux.Router {
